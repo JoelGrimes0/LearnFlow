@@ -30,7 +30,7 @@ C:\LearnFlow
 | Backend | C#, .NET 8, ASP.NET Core Minimal API |
 | Workflow | Camunda 8, BPMN, Orchestration Cluster REST API |
 | Frontend | React, TypeScript, Vite |
-| Testing | xUnit, Moq, coverlet |
+| Testing | xUnit, Moq, coverlet, Vitest, Testing Library |
 | API documentation | Swagger/OpenAPI |
 | Automation | GitHub Actions |
 
@@ -122,6 +122,7 @@ Frontend:
 ```powershell
 Set-Location C:\LearnFlow\client
 npm install
+npm test
 npm run dev
 ```
 

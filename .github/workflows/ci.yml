@@ -28,6 +28,9 @@ jobs:
       - name: Install client dependencies
         working-directory: client
         run: npm ci
+      - name: Run React client tests
+        working-directory: client
+        run: npm test
       - name: Build React client
         working-directory: client
         run: npm run build
