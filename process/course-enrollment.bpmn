@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_LearnFlow"
+  targetNamespace="http://learnflow.local/bpmn"
+  exporter="Camunda Modeler"
+  exporterVersion="5.49.0"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.9.0">
+  <bpmn:process id="learnflow-course-enrollment" name="LearnFlow Course Enrollment" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_Request" name="Enrollment submitted">
+      <bpmn:outgoing>Flow_Start_Validate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_Validate" name="Validate business requirements">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-enrollment" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_Validate</bpmn:incoming>
+      <bpmn:outgoing>Flow_Validate_Eligible</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Eligible" name="Eligible?" default="Flow_NotEligible">
+      <bpmn:incoming>Flow_Validate_Eligible</bpmn:incoming>
+      <bpmn:outgoing>Flow_Eligible</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NotEligible</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:exclusiveGateway id="Gateway_ApprovalRequired" name="Approval required?" default="Flow_ApprovalRequired">
+      <bpmn:incoming>Flow_Eligible</bpmn:incoming>
+      <bpmn:outgoing>Flow_NoApproval</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ApprovalRequired</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UserTask_ManagerApproval" name="Manager reviews enrollment">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="lms-managers" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ApprovalRequired</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approval_Decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Approved" name="Approved?" default="Flow_Denied">
+      <bpmn:incoming>Flow_Approval_Decision</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Denied</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_Enroll" name="Create course enrollment">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="complete-enrollment" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NoApproval</bpmn:incoming>
+      <bpmn:incoming>Flow_Approved</bpmn:incoming>
+      <bpmn:outgoing>Flow_Enroll_Notify</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Reject" name="Record rejection">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="reject-enrollment" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NotEligible</bpmn:incoming>
+      <bpmn:incoming>Flow_Denied</bpmn:incoming>
+      <bpmn:outgoing>Flow_Reject_Notify</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Notify" name="Notify learner">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify-learner" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Enroll_Notify</bpmn:incoming>
+      <bpmn:incoming>Flow_Reject_Notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_Notify_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_Complete" name="Request complete">
+      <bpmn:incoming>Flow_Notify_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_Start_Validate" sourceRef="StartEvent_Request" targetRef="Task_Validate" />
+    <bpmn:sequenceFlow id="Flow_Validate_Eligible" sourceRef="Task_Validate" targetRef="Gateway_Eligible" />
+    <bpmn:sequenceFlow id="Flow_Eligible" name="Yes" sourceRef="Gateway_Eligible" targetRef="Gateway_ApprovalRequired">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= eligible</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_NotEligible" name="No" sourceRef="Gateway_Eligible" targetRef="Task_Reject" />
+    <bpmn:sequenceFlow id="Flow_NoApproval" name="No" sourceRef="Gateway_ApprovalRequired" targetRef="Task_Enroll">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= not requiresApproval</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ApprovalRequired" name="Yes" sourceRef="Gateway_ApprovalRequired" targetRef="UserTask_ManagerApproval" />
+    <bpmn:sequenceFlow id="Flow_Approval_Decision" sourceRef="UserTask_ManagerApproval" targetRef="Gateway_Approved" />
+    <bpmn:sequenceFlow id="Flow_Approved" name="Yes" sourceRef="Gateway_Approved" targetRef="Task_Enroll">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= approved</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Denied" name="No" sourceRef="Gateway_Approved" targetRef="Task_Reject" />
+    <bpmn:sequenceFlow id="Flow_Enroll_Notify" sourceRef="Task_Enroll" targetRef="Task_Notify" />
+    <bpmn:sequenceFlow id="Flow_Reject_Notify" sourceRef="Task_Reject" targetRef="Task_Notify" />
+    <bpmn:sequenceFlow id="Flow_Notify_End" sourceRef="Task_Notify" targetRef="EndEvent_Complete" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_LearnFlow">
+    <bpmndi:BPMNPlane id="BPMNPlane_LearnFlow" bpmnElement="learnflow-course-enrollment">
+      <bpmndi:BPMNShape id="Shape_Start" bpmnElement="StartEvent_Request">
+        <dc:Bounds x="152" y="202" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="126" y="245" width="89" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Validate" bpmnElement="Task_Validate">
+        <dc:Bounds x="240" y="180" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Eligible" bpmnElement="Gateway_Eligible" isMarkerVisible="true">
+        <dc:Bounds x="415" y="195" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="417" y="252" width="46" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_ApprovalRequired" bpmnElement="Gateway_ApprovalRequired" isMarkerVisible="true">
+        <dc:Bounds x="520" y="195" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="504" y="252" width="82" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_ManagerApproval" bpmnElement="UserTask_ManagerApproval">
+        <dc:Bounds x="625" y="180" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Approved" bpmnElement="Gateway_Approved" isMarkerVisible="true">
+        <dc:Bounds x="800" y="195" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="797" y="252" width="58" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Enroll" bpmnElement="Task_Enroll">
+        <dc:Bounds x="905" y="180" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Reject" bpmnElement="Task_Reject">
+        <dc:Bounds x="905" y="335" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Notify" bpmnElement="Task_Notify">
+        <dc:Bounds x="1080" y="180" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End" bpmnElement="EndEvent_Complete">
+        <dc:Bounds x="1262" y="202" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1239" y="245" width="83" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_Start_Validate" bpmnElement="Flow_Start_Validate">
+        <di:waypoint x="188" y="220" /><di:waypoint x="240" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Validate_Eligible" bpmnElement="Flow_Validate_Eligible">
+        <di:waypoint x="360" y="220" /><di:waypoint x="415" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Eligible" bpmnElement="Flow_Eligible">
+        <di:waypoint x="465" y="220" /><di:waypoint x="520" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_NotEligible" bpmnElement="Flow_NotEligible">
+        <di:waypoint x="440" y="245" /><di:waypoint x="440" y="375" /><di:waypoint x="905" y="375" />
+        <bpmndi:BPMNLabel><dc:Bounds x="449" y="288" width="14" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_NoApproval" bpmnElement="Flow_NoApproval">
+        <di:waypoint x="545" y="195" /><di:waypoint x="545" y="130" /><di:waypoint x="965" y="130" /><di:waypoint x="965" y="180" />
+        <bpmndi:BPMNLabel><dc:Bounds x="749" y="112" width="14" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ApprovalRequired" bpmnElement="Flow_ApprovalRequired">
+        <di:waypoint x="570" y="220" /><di:waypoint x="625" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ApprovalDecision" bpmnElement="Flow_Approval_Decision">
+        <di:waypoint x="745" y="220" /><di:waypoint x="800" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Approved" bpmnElement="Flow_Approved">
+        <di:waypoint x="850" y="220" /><di:waypoint x="905" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Denied" bpmnElement="Flow_Denied">
+        <di:waypoint x="825" y="245" /><di:waypoint x="825" y="375" /><di:waypoint x="905" y="375" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Enroll_Notify" bpmnElement="Flow_Enroll_Notify">
+        <di:waypoint x="1025" y="220" /><di:waypoint x="1080" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Reject_Notify" bpmnElement="Flow_Reject_Notify">
+        <di:waypoint x="1025" y="375" /><di:waypoint x="1140" y="375" /><di:waypoint x="1140" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Notify_End" bpmnElement="Flow_Notify_End">
+        <di:waypoint x="1200" y="220" /><di:waypoint x="1262" y="220" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

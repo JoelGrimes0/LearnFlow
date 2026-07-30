@@ -1,0 +1,33 @@
+name: LearnFlow CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Restore .NET dependencies
+        run: dotnet restore LearnFlowLms.sln
+      - name: Build API
+        run: dotnet build LearnFlowLms.sln --configuration Release --no-restore
+      - name: Run business-rule tests
+        run: dotnet test LearnFlowLms.sln --configuration Release --no-build --collect:"XPlat Code Coverage"
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+      - name: Build React client
+        working-directory: client
+        run: npm run build
